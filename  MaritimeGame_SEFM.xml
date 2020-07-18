@@ -1,0 +1,1037 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE nta PUBLIC '-//Uppaal Team//DTD Flat System 1.1//EN' 'http://www.it.uu.se/research/group/darts/uppaal/flat-1_2.dtd'>
+<nta>
+	<declaration>// Place global declarations here.
+//clock time;// global time reference in minutes
+clock  timer,T; // TB clock for shipB and T clock for shipA
+broadcast chan ShipAgo,ShipBgo,Change_course,Back_course,Speed_adjust,detection,not_detect,choose,Adjusted,Update_A,Update_B, Change_course_drift,Back_course_drift;  
+// urgent chan Change_course,Speed_adjust,detection;
+int Pos_x_A,Pos_y_A,Pos_x_B,Pos_y_B ;  // Position of ship A and Ship B 
+int Wp1x= 5, Wp1y=0;// the relevant waypoint(x,y) ---&gt;  if ship plans to change route or course needs to know what is the next point that can safely navigate
+int Wp2x= 0, Wp2y=10;// the relevant waypoint(x,y) ---&gt;  if ship plans to change route or course needs to know what is the next point that can safely navigate
+int headingA,headingB ; // angel of ship moving
+//bool Heavy_weather=0;
+bool ShipB_detect = false; // boolean variable, if ship detect another ship
+bool ShipA_detect = false;
+
+bool ShipB_update = false; // boolean variable, if ships
+
+bool reply=false;
+bool deviated = false;
+const int MaxSpeed = 10;
+int SpeedA , SpeedB; 
+
+const int Sensor = 50;
+int distance=30;
+const int safe_dis=10;
+const int max_int=100;
+typedef int [0, 1] boo;  
+bool adjust_done= false; // the shared variable between two ships, if one ship has did the adjustment 
+bool Collided = false; // the shared variable between two ships,
+
+void initialize(){
+  
+   Pos_x_A=10;
+   Pos_y_A=0;
+   Pos_x_B=0;
+   Pos_y_B=-10;
+   SpeedA = 10;
+   SpeedB= 8;
+   headingA=270;
+   headingB=0;
+ }  
+
+void UpdateDistance(){   // calculating distance between two ships
+double diffx, diffy;
+//if (distance &lt; 100)
+     diffx = pow( Pos_x_A - Pos_x_B, 2);
+     diffy = pow(Pos_y_A -Pos_y_B, 2);
+     distance = fint(sqrt( diffx + diffy));// converts floating point value into integer (works like trunc()).
+//if (distance &gt; 100)
+    // distance= max_int;
+}
+
+// Hybrid stuff
+hybrid clock fc;
+
+
+//  refinement variable
+bool windy;
+int Wind_speed=35;
+int Wind_angle= 160;
+int leeway;
+
+void leeway_angle(){
+  double degree, div;
+  degree= sin(Wind_angle);
+  div= pow (Wind_speed/SpeedB, 2);
+  leeway= fint(div * - degree);
+}</declaration>
+	<template>
+		<name>Scheduler</name>
+		<location id="id0" x="-1198" y="-866">
+			<name x="-1240" y="-857">ShipA_Move</name>
+			<label kind="exponentialrate" x="-1176" y="-877">5</label>
+		</location>
+		<location id="id1" x="-1538" y="-934">
+			<name x="-1548" y="-968">Init</name>
+			<committed/>
+		</location>
+		<location id="id2" x="-1538" y="-781">
+			<name x="-1554" y="-770">End</name>
+			<label kind="exponentialrate" x="-1543" y="-755">5</label>
+		</location>
+		<location id="id3" x="-1376" y="-934">
+			<name x="-1410" y="-968">ShipB_Move</name>
+			<label kind="exponentialrate" x="-1375" y="-986">5</label>
+		</location>
+		<location id="id4" x="-1198" y="-937">
+			<name x="-1232" y="-971">ShipB_done</name>
+			<label kind="exponentialrate" x="-1196" y="-993">5</label>
+		</location>
+		<location id="id5" x="-1198" y="-781">
+			<name x="-1232" y="-772">ShipA_done</name>
+			<label kind="exponentialrate" x="-1179" y="-791">5</label>
+		</location>
+		<location id="id6" x="-1376" y="-781">
+			<name x="-1410" y="-773">Update_distance</name>
+			<label kind="exponentialrate" x="-1382" y="-756">5</label>
+		</location>
+		<init ref="id1"/>
+		<transition>
+			<source ref="id2"/>
+			<target ref="id1"/>
+			<label kind="guard" x="-1591" y="-893">Collided</label>
+			<label kind="assignment" x="-1593" y="-857">Collided=false</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id6"/>
+			<target ref="id3"/>
+			<label kind="guard" x="-1433" y="-891">distance&gt;=safe_dis</label>
+			<label kind="assignment" x="-1414" y="-870">UpdateDistance()</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id5"/>
+			<target ref="id6"/>
+			<label kind="synchronisation" x="-1316" y="-807">Update_A!</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id4"/>
+			<target ref="id0"/>
+			<label kind="guard" x="-1179" y="-931">ShipB_update</label>
+			<label kind="synchronisation" x="-1170" y="-916">Update_B!</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id3"/>
+			<target ref="id4"/>
+			<label kind="synchronisation" x="-1302" y="-959">ShipBgo!</label>
+		</transition>
+		<transition>
+			<source ref="id6"/>
+			<target ref="id2"/>
+			<label kind="guard" x="-1513" y="-803">distance&lt;safe_dis</label>
+			<label kind="assignment" x="-1509" y="-775">Collided=true</label>
+			<nail x="-1444" y="-781"/>
+		</transition>
+		<transition controllable="false">
+			<source ref="id0"/>
+			<target ref="id5"/>
+			<label kind="synchronisation" x="-1168" y="-815">ShipAgo!</label>
+		</transition>
+		<transition>
+			<source ref="id1"/>
+			<target ref="id3"/>
+			<label kind="assignment" x="-1501" y="-951">initialize()</label>
+			<nail x="-1444" y="-934"/>
+		</transition>
+	</template>
+	<template>
+		<name x="5" y="5">ShipA</name>
+		<declaration>// Ship A is opponent that is why every transition is uncontrollable.
+// Ship A start moving from east to west, since ship A is environment doesnot need to do adjusment and with highest probability 
+//will keep moving (weight is 6)
+clock T;
+void Update_speed_A(int correction){ // changing speed 
+        SpeedA = SpeedA + correction;
+        
+}
+
+
+
+// changing route needs to update the heading
+
+void Update_Heading_A(int deg1){ // 1. calculating the heading based on given waypoint 2. Update position of ship
+      //double degree1;
+      int newHeading1;
+      //degree1= atan2(Wp2y*1.0-Pos_y_A*1.0, Wp2x*1.0-Pos_x_A*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+      //deg1 = fint(round(degree1));
+      newHeading1= deg1+headingA;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+      if (newHeading1 &gt;= 0)                   // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingA = newHeading1;
+      else
+        headingA = newHeading1 + 360;    // if the value of degree becomes negative, then 2π is added to make to them positive
+}
+
+void Update_Position_A(){
+     int x1,y1;
+     x1=fint(round(cos(headingA)));
+     y1=fint(round(sin(headingA)));
+     Pos_x_A= x1* SpeedA + Pos_x_A ; // x=x0+ v cos(θ)     y=y0+v sin(θ)
+     Pos_y_A= y1 * SpeedA + Pos_y_A;
+     if (Pos_x_A &lt; 100)
+        Pos_x_A=Pos_x_A;
+     if (Pos_x_A &lt; -100)  
+        Pos_x_A=-(max_int);
+     if (Pos_x_A &gt; 100)  
+        Pos_x_A= max_int;
+     if (Pos_y_A &lt; 100)
+        Pos_y_A=Pos_y_A;
+     if (Pos_y_A &lt; -100)  
+        Pos_y_A=-(max_int);
+     if (Pos_y_A &gt; 100)  
+        Pos_y_A= max_int;
+}
+
+ 
+
+
+
+</declaration>
+		<location id="id7" x="-125081" y="-125175">
+			<name x="-125107" y="-125212">Moving</name>
+		</location>
+		<location id="id8" x="-125008" y="-125034">
+			<name x="-125053" y="-125064">Change_route</name>
+			<label kind="invariant" x="-125064" y="-125042">T&lt;=10</label>
+		</location>
+		<location id="id9" x="-124714" y="-124944">
+			<name x="-124748" y="-124936">Change_speed</name>
+			<label kind="invariant" x="-124731" y="-124919">T&lt;=5</label>
+		</location>
+		<location id="id10" x="-124714" y="-125094">
+			<name x="-124697" y="-125107">Decision</name>
+			<committed/>
+		</location>
+		<location id="id11" x="-124715" y="-125180">
+			<name x="-124757" y="-125214">Sensor_Monitoring</name>
+			<committed/>
+		</location>
+		<location id="id12" x="-125009" y="-124940">
+			<name x="-125068" y="-124931">Maneuver_ended</name>
+			<committed/>
+		</location>
+		<branchpoint id="id13" x="-124715" y="-125034">
+		</branchpoint>
+		<init ref="id7"/>
+		<transition controllable="false">
+			<source ref="id7"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-125289" y="-125235">distance &gt; Sensor || adjust_done</label>
+			<label kind="synchronisation" x="-125235" y="-125217">Update_A?</label>
+			<label kind="assignment" x="-125286" y="-125193">Update_Position_A()</label>
+			<nail x="-125157" y="-125166"/>
+			<nail x="-125149" y="-125209"/>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id7"/>
+			<label kind="probability" x="-124743" y="-125070">8</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id12"/>
+			<target ref="id7"/>
+			<nail x="-125079" y="-124939"/>
+		</transition>
+		<transition controllable="false">
+			<source ref="id9"/>
+			<target ref="id12"/>
+			<label kind="synchronisation" x="-124899" y="-124943">Update_A?</label>
+			<label kind="assignment" x="-124940" y="-124928">Update_Position_A(),T=0</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id8"/>
+			<target ref="id12"/>
+			<label kind="synchronisation" x="-124995" y="-125006">Update_A?</label>
+			<label kind="assignment" x="-125001" y="-124980">Update_Position_A(),T=0</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id11"/>
+			<target ref="id10"/>
+			<label kind="guard" x="-124709" y="-125170">distance &lt;= Sensor &amp;&amp;
+ShipA_detect == false</label>
+			<label kind="assignment" x="-124702" y="-125134">ShipA_detect= true</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id11"/>
+			<target ref="id7"/>
+			<label kind="guard" x="-125022" y="-125221">distance &gt; Sensor || ShipA_detect</label>
+			<nail x="-124912" y="-125204"/>
+		</transition>
+		<transition controllable="false">
+			<source ref="id7"/>
+			<target ref="id11"/>
+			<label kind="synchronisation" x="-124939" y="-125171">ShipAgo?</label>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id8"/>
+			<label kind="select" x="-124914" y="-125072">deg:int[-1,1]</label>
+			<label kind="assignment" x="-124949" y="-125054">Update_Heading_A(deg)</label>
+			<label kind="probability" x="-124764" y="-125051">1</label>
+		</transition>
+		<transition>
+			<source ref="id13"/>
+			<target ref="id9"/>
+			<label kind="select" x="-124694" y="-125011">i: int[-2,2]</label>
+			<label kind="assignment" x="-124705" y="-124993">Update_speed_A(i)</label>
+			<label kind="probability" x="-124728" y="-125027">1</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id10"/>
+			<target ref="id13"/>
+			<label kind="guard" x="-124711" y="-125079">ShipA_detect</label>
+			<label kind="assignment" x="-124714" y="-125064">T=0</label>
+		</transition>
+	</template>
+	<template>
+		<name>ShipB</name>
+		<declaration>
+// Ship B is player that is why every transition is controllable.
+// Ship B start moving from south to north, since ship B has another ship in its statboard, after detection ship B has two options:
+// 1. if distance is far ship B can slow down 2. change direction
+// As I wanted the ship B as agent learns how to do optimal adjustment , added speed up as a bad action
+
+clock T;
+
+void Update_Position_B(){
+     int x, y;      
+     x=fint(round(cos(headingB)));
+     y=fint(round(sin(headingB)));
+     Pos_x_B= x* SpeedB + Pos_x_B;
+     Pos_y_B= y * SpeedB + Pos_y_B;
+     if (Pos_x_B &lt; 100)
+        Pos_x_B=Pos_x_B;
+     if (Pos_x_B &lt; -100)  
+        Pos_x_B=-(max_int);
+     if (Pos_x_B &gt; 100)  
+        Pos_x_B= max_int;
+     if (Pos_y_B &lt; 100)
+        Pos_y_B=Pos_y_B;
+     if (Pos_y_B &lt; -100)  
+        Pos_y_B=-(max_int);
+     if (Pos_y_B &gt; 100)  
+        Pos_y_B= max_int;
+} 
+</declaration>
+		<location id="id14" x="-13614" y="-13782">
+			<name x="-13621" y="-13817">Moving</name>
+			<label kind="invariant" x="-13607" y="-13776">fc'==1</label>
+		</location>
+		<location id="id15" x="-13322" y="-13786">
+			<name x="-13367" y="-13822">Adjusment</name>
+			<label kind="invariant" x="-13306" y="-13804">T&lt;=5</label>
+		</location>
+		<location id="id16" x="-13216" y="-13674">
+			<name x="-13199" y="-13683">Changing_Speed</name>
+			<label kind="invariant" x="-13199" y="-13665">T&lt;=5 &amp;&amp; fc'==8</label>
+		</location>
+		<location id="id17" x="-13470" y="-13677">
+			<name x="-13571" y="-13695">Change_route</name>
+			<label kind="invariant" x="-13584" y="-13675">T&lt;=10 &amp;&amp; fc'==2</label>
+		</location>
+		<location id="id18" x="-13323" y="-13544">
+			<name x="-13365" y="-13537">Maneuver_ended</name>
+			<label kind="invariant" x="-13313" y="-13573">fc'==0</label>
+			<committed/>
+		</location>
+		<location id="id19" x="-13322" y="-13672">
+			<name x="-13405" y="-13685">Back_route</name>
+			<label kind="invariant" x="-13384" y="-13659">T&lt;=10 &amp;&amp; fc'==2</label>
+		</location>
+		<init ref="id14"/>
+		<transition>
+			<source ref="id19"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-13400" y="-13645">adjust_done</label>
+			<label kind="synchronisation" x="-13370" y="-13628">Update_B?</label>
+			<label kind="assignment" x="-13367" y="-13611">Update_Position_B()
+,T=0,deviated = false</label>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id19"/>
+			<label kind="guard" x="-13381" y="-13745">deviated</label>
+			<label kind="synchronisation" x="-13414" y="-13713">Back_course?</label>
+			<label kind="assignment" x="-13358" y="-13727">T=0</label>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-13751" y="-13855">ShipB_detect &amp;&amp; adjust_done &amp;&amp;
+ShipB_update</label>
+			<label kind="synchronisation" x="-13732" y="-13818">Update_B?</label>
+			<label kind="assignment" x="-13761" y="-13786">Update_Position_B(),
+ShipB_update=false</label>
+			<nail x="-13667" y="-13797"/>
+			<nail x="-13629" y="-13825"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-13511" y="-13873">reply==true</label>
+			<label kind="synchronisation" x="-13518" y="-13834">not_detect?</label>
+			<label kind="assignment" x="-13517" y="-13854">reply=false,T=0</label>
+			<nail x="-13485" y="-13808"/>
+		</transition>
+		<transition>
+			<source ref="id14"/>
+			<target ref="id15"/>
+			<label kind="synchronisation" x="-13496" y="-13803">ShipBgo?</label>
+			<label kind="assignment" x="-13415" y="-13798">T=0</label>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id15"/>
+			<label kind="guard" x="-13344" y="-13876">reply == false</label>
+			<label kind="synchronisation" x="-13329" y="-13860">detection!</label>
+			<label kind="assignment" x="-13314" y="-13844">reply=true,T=0</label>
+			<nail x="-13279" y="-13819"/>
+			<nail x="-13336" y="-13831"/>
+		</transition>
+		<transition>
+			<source ref="id18"/>
+			<target ref="id14"/>
+			<label kind="guard" x="-13736" y="-13710">ShipB_update</label>
+			<label kind="synchronisation" x="-13726" y="-13686">Adjusted!</label>
+			<label kind="assignment" x="-13743" y="-13669">reply = false,
+ShipB_update=false</label>
+			<nail x="-13613" y="-13545"/>
+		</transition>
+		<transition>
+			<source ref="id17"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-13500" y="-13641">adjust_done</label>
+			<label kind="synchronisation" x="-13496" y="-13622">Update_B?</label>
+			<label kind="assignment" x="-13512" y="-13597">Update_Position_B()
+,T=0,deviated = true</label>
+		</transition>
+		<transition>
+			<source ref="id16"/>
+			<target ref="id18"/>
+			<label kind="guard" x="-13205" y="-13637">adjust_done</label>
+			<label kind="synchronisation" x="-13199" y="-13618">Update_B?</label>
+			<label kind="assignment" x="-13209" y="-13599">Update_Position_B()
+,T=0</label>
+			<nail x="-13217" y="-13543"/>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id17"/>
+			<label kind="guard" x="-13590" y="-13755">not adjust_done &amp;&amp; not deviated</label>
+			<label kind="synchronisation" x="-13562" y="-13737">Change_course?</label>
+			<label kind="assignment" x="-13447" y="-13737">T=0</label>
+		</transition>
+		<transition>
+			<source ref="id15"/>
+			<target ref="id16"/>
+			<label kind="guard" x="-13215" y="-13781">not adjust_done</label>
+			<label kind="synchronisation" x="-13213" y="-13762">Speed_adjust?</label>
+			<label kind="assignment" x="-13213" y="-13738">T=0</label>
+			<nail x="-13218" y="-13784"/>
+		</transition>
+	</template>
+	<template>
+		<name>ShipB_controller</name>
+		<declaration>clock T;
+void Update_Heading_B_1(){ // changing route needs to update the heading
+     double degree;               // 1. calculating the heading based on given waypoint 2. Update position of ship
+     int deg,newHeading;
+     degree= atan2(Wp1y*1.0-Pos_y_B*1.0, Wp1x*1.0-Pos_x_B*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+     deg = fint(degree);
+     newHeading= deg-headingB;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+     if (newHeading &gt;= 0)       // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingB = newHeading;
+     else
+        headingB = newHeading + 360;    // if the value of degree becomes negative, then 2π is added to make to them positive
+}
+
+void Update_Heading_B_2(){ // changing route needs to update the heading
+     double degree;               // 1. calculating the heading based on given waypoint 2. Update position of ship
+     int deg,newHeading;
+     degree= atan2(Wp2y*1.0-Pos_y_B*1.0, Wp2x*1.0-Pos_x_B*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+     deg = fint(degree);
+     newHeading= deg-headingB;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+     if (newHeading &gt;= 0)       // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingB = newHeading;
+     else
+        headingB = newHeading + 360;    // if the value of degree becomes negative, then 2π is added to make to them positive
+}
+
+
+
+
+
+
+
+
+
+void Update_speed_B(int correction){ // changing speed or deceleration
+        SpeedB = SpeedB + correction;       
+}
+
+
+</declaration>
+		<location id="id20" x="-408" y="-84">
+			<name x="-433" y="-125">Choose</name>
+			<label kind="invariant" x="-414" y="-73">T&lt;=5</label>
+		</location>
+		<location id="id21" x="-507" y="-179">
+			<name x="-545" y="-213">No_action</name>
+		</location>
+		<location id="id22" x="-326" y="-177">
+			<name x="-354" y="-215">Sensor_Monitoring</name>
+			<committed/>
+		</location>
+		<init ref="id21"/>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id20"/>
+			<label kind="guard" x="-481" y="-24">deviated &amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-452" y="3">Back_course!</label>
+			<label kind="assignment" x="-469" y="22">Update_Heading_B_2(),
+ShipB_update=true,T=0</label>
+			<nail x="-370" y="-24"/>
+			<nail x="-442" y="-24"/>
+		</transition>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id21"/>
+			<label kind="synchronisation" x="-531" y="-147">Adjusted?</label>
+			<label kind="assignment" x="-480" y="-134">T=0</label>
+		</transition>
+		<transition>
+			<source ref="id22"/>
+			<target ref="id20"/>
+			<label kind="guard" x="-311" y="-181">reply &amp;&amp; distance &lt;= Sensor &amp;&amp; 
+adjust_done==false || deviated</label>
+			<label kind="assignment" x="-313" y="-141">ShipB_detect= true,
+T=0</label>
+		</transition>
+		<transition>
+			<source ref="id21"/>
+			<target ref="id22"/>
+			<label kind="synchronisation" x="-442" y="-172">detection?</label>
+			<nail x="-409" y="-170"/>
+		</transition>
+		<transition>
+			<source ref="id22"/>
+			<target ref="id21"/>
+			<label kind="guard" x="-512" y="-256">distance &gt; Sensor || adjust_done
+&amp;&amp; not deviated</label>
+			<label kind="synchronisation" x="-449" y="-219">not_detect!</label>
+			<label kind="assignment" x="-396" y="-240">ShipB_update=true</label>
+			<nail x="-409" y="-199"/>
+		</transition>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id20"/>
+			<label kind="guard" x="-330" y="-87">ShipB_detect &amp;&amp; not deviated
+&amp;&amp; not adjust_done &amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-296" y="-52">Change_course!</label>
+			<label kind="assignment" x="-290" y="-31">Update_Heading_B_1(),
+adjust_done=true,
+ShipB_update=true,T=0</label>
+			<nail x="-340" y="-50"/>
+			<nail x="-340" y="-103"/>
+		</transition>
+		<transition>
+			<source ref="id20"/>
+			<target ref="id20"/>
+			<label kind="select" x="-614" y="-148">i: int[-2,2]</label>
+			<label kind="guard" x="-710" y="-117">not adjust_done&amp;&amp;ShipB_detect&amp;&amp;
+not deviated &amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-616" y="-74">Speed_adjust!</label>
+			<label kind="assignment" x="-643" y="-52">Update_speed_B(i),
+adjust_done=true,
+ShipB_update=true,T=0</label>
+			<nail x="-488" y="-106"/>
+			<nail x="-482" y="-58"/>
+		</transition>
+	</template>
+	<template>
+		<name>ShipB_refined</name>
+		<declaration>
+// Ship B is player that is why every transition is controllable.
+// Ship B start moving from south to north, since ship B has another ship in its statboard, after detection ship B has two options:
+// 1. if distance is far ship B can slow down 2. change direction
+// As I wanted the ship B as agent learns how to do optimal adjustment , added speed up as a bad action
+clock T;
+
+
+void Update_Position_B(){
+     int x, y;      
+     x=fint(round(cos(headingB)));
+     y=fint(round(sin(headingB)));
+     Pos_x_B= x* SpeedB + Pos_x_B;
+     Pos_y_B= y * SpeedB + Pos_y_B;
+     if (Pos_x_B &lt; 100)
+        Pos_x_B=Pos_x_B;
+     if (Pos_x_B &lt; -100)  
+        Pos_x_B=-(max_int);
+     if (Pos_x_B &gt; 100)  
+        Pos_x_B= max_int;
+     if (Pos_y_B &lt; 100)
+        Pos_y_B=Pos_y_B;
+     if (Pos_y_B &lt; -100)  
+        Pos_y_B=-(max_int);
+     if (Pos_y_B &gt; 100)  
+        Pos_y_B= max_int;
+} 
+</declaration>
+		<location id="id23" x="-13560" y="-14151">
+			<name x="-13590" y="-14187">Moving</name>
+			<label kind="invariant" x="-13550" y="-14147">fc'==1</label>
+		</location>
+		<location id="id24" x="-13354" y="-14152">
+			<name x="-13415" y="-14190">Adjusment</name>
+			<label kind="invariant" x="-13392" y="-14144">T&lt;=5</label>
+		</location>
+		<location id="id25" x="-13107" y="-14213">
+			<name x="-13157" y="-14251">Changing_Speed</name>
+			<label kind="invariant" x="-13134" y="-14202">T&lt;=5 &amp;&amp; fc'==8</label>
+		</location>
+		<location id="id26" x="-13108" y="-13995">
+			<name x="-13176" y="-14030">Change_route_drift</name>
+			<label kind="invariant" x="-13161" y="-13986">T&lt;=10 &amp;&amp; fc'==5</label>
+		</location>
+		<location id="id27" x="-12867" y="-14145">
+			<name x="-12929" y="-14194">Maneuver_ended</name>
+			<label kind="invariant" x="-12862" y="-14172">fc'==0</label>
+			<committed/>
+		</location>
+		<location id="id28" x="-13102" y="-14149">
+			<name x="-13135" y="-14180">Change_route</name>
+			<label kind="invariant" x="-13153" y="-14138">T&lt;=10 &amp;&amp; fc'==2</label>
+		</location>
+		<location id="id29" x="-13097" y="-14074">
+			<name x="-13133" y="-14104">Back_route</name>
+			<label kind="invariant" x="-13169" y="-14063">T&lt;=10 &amp;&amp; fc'==2</label>
+		</location>
+		<location id="id30" x="-13109" y="-13931">
+			<name x="-13162" y="-13962">Back_route_drift</name>
+			<label kind="invariant" x="-13172" y="-13925">T&lt;=10 &amp;&amp; fc'==5</label>
+		</location>
+		<init ref="id23"/>
+		<transition>
+			<source ref="id30"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-13016" y="-13977">adjust_done</label>
+			<label kind="synchronisation" x="-13014" y="-13963">Update_B?</label>
+			<label kind="assignment" x="-13054" y="-13948">Update_Position_B(),T=0,
+deviated = false</label>
+			<nail x="-12896" y="-13929"/>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id30"/>
+			<label kind="guard" x="-13328" y="-13969">windy &amp;&amp; deviated</label>
+			<label kind="synchronisation" x="-13324" y="-13956">Back_course_drift?</label>
+			<label kind="assignment" x="-13332" y="-13942">leeway_angle(),T=0</label>
+			<nail x="-13353" y="-13924"/>
+			<nail x="-13132" y="-13926"/>
+		</transition>
+		<transition>
+			<source ref="id29"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-13012" y="-14115">adjust_done</label>
+			<label kind="synchronisation" x="-13012" y="-14097">Update_B?</label>
+			<label kind="assignment" x="-13033" y="-14078">Update_Position_B()
+,T=0,deviated = false</label>
+			<nail x="-12909" y="-14075"/>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id29"/>
+			<label kind="guard" x="-13311" y="-14108">not windy &amp;&amp; deviated</label>
+			<label kind="synchronisation" x="-13301" y="-14094">Back_course?</label>
+			<label kind="assignment" x="-13207" y="-14093">T=0</label>
+			<nail x="-13331" y="-14075"/>
+		</transition>
+		<transition>
+			<source ref="id28"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-13017" y="-14195">adjust_done</label>
+			<label kind="synchronisation" x="-13017" y="-14181">Update_B?</label>
+			<label kind="assignment" x="-13039" y="-14166">Update_Position_B()
+,T=0,deviated = true</label>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id28"/>
+			<label kind="guard" x="-13308" y="-14194">not windy&amp;&amp;not adjust_done
+&amp;&amp; not deviated</label>
+			<label kind="synchronisation" x="-13322" y="-14151">Change_course?</label>
+			<label kind="assignment" x="-13207" y="-14150">T=0</label>
+			<nail x="-13321" y="-14150"/>
+		</transition>
+		<transition>
+			<source ref="id23"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-13690" y="-14245">ShipB_detect &amp;&amp; 
+adjust_done &amp;&amp;
+ ShipB_update</label>
+			<label kind="synchronisation" x="-13690" y="-14178">Update_B?</label>
+			<label kind="assignment" x="-13695" y="-14139">Update_Position_B(),
+ShipB_update=false</label>
+			<nail x="-13624" y="-14142"/>
+			<nail x="-13612" y="-14191"/>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-13520" y="-14227">reply==true</label>
+			<label kind="synchronisation" x="-13520" y="-14242">not_detect?</label>
+			<label kind="assignment" x="-13523" y="-14208">reply=false</label>
+			<nail x="-13472" y="-14185"/>
+		</transition>
+		<transition>
+			<source ref="id23"/>
+			<target ref="id24"/>
+			<label kind="synchronisation" x="-13505" y="-14173">ShipBgo?</label>
+			<label kind="assignment" x="-13439" y="-14171">T=0</label>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id24"/>
+			<label kind="guard" x="-13403" y="-14248">reply == false</label>
+			<label kind="synchronisation" x="-13394" y="-14230">detection!</label>
+			<label kind="assignment" x="-13399" y="-14217">reply=true,T=0</label>
+			<nail x="-13336" y="-14196"/>
+			<nail x="-13378" y="-14194"/>
+		</transition>
+		<transition>
+			<source ref="id27"/>
+			<target ref="id23"/>
+			<label kind="guard" x="-13666" y="-14066">ShipB_update</label>
+			<label kind="synchronisation" x="-13642" y="-14045">Adjusted!</label>
+			<label kind="assignment" x="-13689" y="-14025">reply = false,T=0,
+ShipB_update=false</label>
+			<nail x="-12877" y="-13902"/>
+			<nail x="-13560" y="-13905"/>
+		</transition>
+		<transition>
+			<source ref="id26"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-13022" y="-14040">adjust_done</label>
+			<label kind="synchronisation" x="-13019" y="-14028">Update_B?</label>
+			<label kind="assignment" x="-13052" y="-14011">Update_Position_B()
+,T=0,deviated = true</label>
+			<nail x="-12902" y="-13993"/>
+		</transition>
+		<transition>
+			<source ref="id25"/>
+			<target ref="id27"/>
+			<label kind="guard" x="-13028" y="-14260">adjust_done</label>
+			<label kind="synchronisation" x="-13023" y="-14243">Update_B?</label>
+			<label kind="assignment" x="-13049" y="-14231">Update_Position_B(),T=0</label>
+			<nail x="-12871" y="-14213"/>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id26"/>
+			<label kind="guard" x="-13333" y="-14049">windy &amp;&amp; not adjust_done
+&amp;&amp; not deviated</label>
+			<label kind="synchronisation" x="-13334" y="-14015">Change_course_drift?</label>
+			<label kind="assignment" x="-13317" y="-13994">leeway_angle(),T=0</label>
+			<nail x="-13346" y="-13993"/>
+			<nail x="-13171" y="-13993"/>
+		</transition>
+		<transition>
+			<source ref="id24"/>
+			<target ref="id25"/>
+			<label kind="guard" x="-13268" y="-14254">not adjust_done</label>
+			<label kind="synchronisation" x="-13268" y="-14235">Speed_adjust?</label>
+			<label kind="assignment" x="-13166" y="-14236">T=0</label>
+			<nail x="-13274" y="-14216"/>
+		</transition>
+	</template>
+	<template>
+		<name>ShipB_controller_refined</name>
+		<declaration>clock Tc;
+void Update_Heading_B_1(){ // changing route needs to update the heading
+     double degree;               // 1. calculating the heading based on given waypoint 2. Update position of ship
+     int deg,newHeading;
+     degree= atan2(Wp1y*1.0-Pos_y_B*1.0, Wp1x*1.0-Pos_x_B*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+     deg = fint(degree);
+     newHeading= deg-headingB;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+     if (newHeading &gt;= 0)       // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingB = newHeading;
+     else
+        headingB = newHeading + 360;    // if the value of degree becomes negative, then 2π is added to make to them positive
+}
+
+void Update_Heading_B_2(){ // changing route needs to update the heading
+     double degree;               // 1. calculating the heading based on given waypoint 2. Update position of ship
+     int deg,newHeading;
+     degree= atan2(Wp2y*1.0-Pos_y_B*1.0, Wp2x*1.0-Pos_x_B*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+     deg = fint(degree);
+     newHeading= deg-headingB;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+     if (newHeading &gt;= 0)       // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingB = newHeading;
+     else
+        headingB = newHeading + 360;    // if the value of degree becomes negative, then 2π is added to make to them positive
+}
+void Update_HeadB_win1(){
+    double degree,deg_dri,div;               // 1. calculating the heading based on given waypoint 2. Update position of ship
+     int deg,newHeading, drif,num;
+     degree= atan2(Wp1y*1.0-Pos_y_B*1.0, Wp1x*1.0-Pos_x_B*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+     deg = fint(degree);
+     newHeading= deg-headingB+leeway;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+     if (newHeading &gt;= 0)       // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingB = newHeading;
+     else
+        headingB = newHeading + 360;
+}
+void Update_HeadB_wind2(){
+   double degree,dri,div;               // 1. calculating the heading based on given waypoint 2. Update position of ship
+     int deg,newHeading,drif,num;
+     degree= atan2(Wp2y*1.0-Pos_y_B*1.0, Wp2x*1.0-Pos_x_B*1.0);           //double atan2(double y, double x) — arc tangent of the ratio y/x in radians.
+     deg = fint(degree);
+     newHeading= deg-headingB+leeway;   //  where, ''headingB'' is ship’s heading, ''deg'' is encountering angle of way point from vertical axis
+     if (newHeading &gt;= 0)       // and  ''newHeading'' is bearing angle of waypoint from the ship
+        headingB = newHeading;
+     else
+        headingB = newHeading + 360;
+}
+void Update_speed_B(int correction){ // changing speed or deceleration
+        SpeedB = SpeedB + correction;       
+}
+
+
+
+
+
+
+
+
+
+</declaration>
+		<location id="id31" x="-375" y="-7">
+			<name x="-401" y="-45">Choose</name>
+			<label kind="invariant" x="-391" y="13">T&lt;=5</label>
+		</location>
+		<location id="id32" x="-556" y="-180">
+			<name x="-605" y="-218">Not_detection</name>
+		</location>
+		<location id="id33" x="-183" y="-178">
+			<name x="-237" y="-214">Sensor_Monitoring</name>
+			<committed/>
+		</location>
+		<init ref="id32"/>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-530" y="-153">deviated &amp;&amp; windy
+&amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-530" y="-67">Back_course_drift!</label>
+			<label kind="assignment" x="-538" y="-115">Update_HeadB_wind2(),
+T=0,ShipB_update=true</label>
+			<nail x="-394" y="-62"/>
+			<nail x="-432" y="-33"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-376" y="-165">ShipB_detect&amp;&amp; not deviated
+&amp;&amp; not adjust_done&amp;&amp; windy
+&amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-333" y="-58">Change_course_drift!</label>
+			<label kind="assignment" x="-370" y="-112">Update_HeadB_win1(),
+adjust_done=true,
+ShipB_update=true,T=0</label>
+			<nail x="-329" y="-39"/>
+			<nail x="-363" y="-53"/>
+			<nail x="-368" y="-27"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-425" y="70">deviated &amp;&amp; not windy
+&amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-409" y="50">Back_course!</label>
+			<label kind="assignment" x="-429" y="114">Update_Heading_B_2(),
+T=0,ShipB_update=true</label>
+			<nail x="-344" y="45"/>
+			<nail x="-406" y="47"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id32"/>
+			<label kind="synchronisation" x="-625" y="-133">Adjusted?</label>
+			<label kind="assignment" x="-610" y="-150">T=0</label>
+			<nail x="-390" y="-12"/>
+			<nail x="-559" y="-40"/>
+		</transition>
+		<transition>
+			<source ref="id33"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-174" y="-160">reply &amp;&amp; distance &lt;= Sensor &amp;&amp; 
+adjust_done==false || deviated</label>
+			<label kind="assignment" x="-169" y="-113">ShipB_detect= true,T=0</label>
+			<nail x="-182" y="-40"/>
+			<nail x="-357" y="-14"/>
+		</transition>
+		<transition>
+			<source ref="id32"/>
+			<target ref="id33"/>
+			<label kind="synchronisation" x="-422" y="-198">detection?</label>
+			<nail x="-401" y="-178"/>
+		</transition>
+		<transition>
+			<source ref="id33"/>
+			<target ref="id32"/>
+			<label kind="guard" x="-498" y="-266">distance &gt; Sensor || adjust_done
+&amp;&amp; not deviated</label>
+			<label kind="synchronisation" x="-431" y="-231">not_detect!</label>
+			<label kind="assignment" x="-390" y="-249">ShipB_update=true</label>
+			<nail x="-383" y="-206"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id31"/>
+			<label kind="guard" x="-272" y="12">ShipB_detect&amp;&amp; not deviated
+&amp;&amp; not adjust_done &amp;&amp; not windy
+&amp;&amp; not ShipB_update</label>
+			<label kind="synchronisation" x="-315" y="-14">Change_course!</label>
+			<label kind="assignment" x="-258" y="67">Update_Heading_B_1(),
+adjust_done=true,
+ShipB_update=true,T=0</label>
+			<nail x="-330" y="32"/>
+			<nail x="-316" y="-10"/>
+		</transition>
+		<transition>
+			<source ref="id31"/>
+			<target ref="id31"/>
+			<label kind="select" x="-599" y="-20">i: int[-2,2]</label>
+			<label kind="guard" x="-595" y="1">not adjust_done &amp;&amp;
+ShipB_detect &amp;&amp;
+not deviated &amp;&amp;
+not ShipB_update</label>
+			<label kind="synchronisation" x="-535" y="-20">Speed_adjust!</label>
+			<label kind="assignment" x="-601" y="84">Update_speed_B(i),
+adjust_done=true,
+ShipB_update=true,T=0</label>
+			<nail x="-439" y="-14"/>
+			<nail x="-417" y="39"/>
+		</transition>
+	</template>
+	<template>
+		<name>Scheduler_refined</name>
+		<location id="id34" x="-1790" y="-1349">
+			<name x="-1832" y="-1340">ShipA_Move</name>
+			<label kind="exponentialrate" x="-1750" y="-1360">5</label>
+		</location>
+		<location id="id35" x="-2130" y="-1417">
+			<name x="-2140" y="-1451">Init</name>
+			<committed/>
+		</location>
+		<location id="id36" x="-2130" y="-1264">
+			<name x="-2146" y="-1253">End</name>
+			<label kind="exponentialrate" x="-2135" y="-1238">5</label>
+		</location>
+		<location id="id37" x="-1968" y="-1417">
+			<name x="-2002" y="-1451">ShipB_Move</name>
+			<label kind="exponentialrate" x="-1967" y="-1469">5</label>
+		</location>
+		<location id="id38" x="-1790" y="-1420">
+			<name x="-1824" y="-1454">ShipB_done</name>
+			<label kind="exponentialrate" x="-1788" y="-1476">5</label>
+		</location>
+		<location id="id39" x="-1790" y="-1264">
+			<name x="-1824" y="-1255">ShipA_done</name>
+			<label kind="exponentialrate" x="-1761" y="-1274">5</label>
+		</location>
+		<location id="id40" x="-1968" y="-1265">
+			<name x="-2002" y="-1257">Update_distance</name>
+			<label kind="exponentialrate" x="-1974" y="-1240">5</label>
+		</location>
+		<init ref="id35"/>
+		<transition>
+			<source ref="id36"/>
+			<target ref="id35"/>
+			<label kind="guard" x="-2130" y="-1374">Collided</label>
+			<label kind="assignment" x="-2130" y="-1340">Collided=false</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id40"/>
+			<target ref="id37"/>
+			<label kind="guard" x="-2021" y="-1374">distance&gt;=safe_dis</label>
+			<label kind="assignment" x="-2013" y="-1352">UpdateDistance()</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id39"/>
+			<target ref="id40"/>
+			<label kind="synchronisation" x="-1908" y="-1285">Update_A!</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id38"/>
+			<target ref="id34"/>
+			<label kind="guard" x="-1783" y="-1407">ShipB_update</label>
+			<label kind="synchronisation" x="-1773" y="-1390">Update_B!</label>
+		</transition>
+		<transition controllable="false">
+			<source ref="id37"/>
+			<target ref="id38"/>
+			<label kind="synchronisation" x="-1906" y="-1442">ShipBgo!</label>
+		</transition>
+		<transition>
+			<source ref="id40"/>
+			<target ref="id36"/>
+			<label kind="guard" x="-2104" y="-1287">distance&lt;safe_dis</label>
+			<label kind="assignment" x="-2101" y="-1258">Collided=true</label>
+			<nail x="-2036" y="-1264"/>
+		</transition>
+		<transition controllable="false">
+			<source ref="id34"/>
+			<target ref="id39"/>
+			<label kind="synchronisation" x="-1783" y="-1310">ShipAgo!</label>
+		</transition>
+		<transition>
+			<source ref="id35"/>
+			<target ref="id37"/>
+			<label kind="select" x="-2097" y="-1457">wind:int[0,1]</label>
+			<label kind="assignment" x="-2097" y="-1437">initialize(),
+windy=wind</label>
+			<nail x="-2036" y="-1417"/>
+		</transition>
+	</template>
+	<system>// Place template instantiations here.
+//Process1 = ShipA();
+//Process2 = ShipB();
+//Process3 =Scheduler();
+// List one or more processes to be composed into a system.
+system ShipA,ShipB_refined,Scheduler_refined,ShipB_controller_refined;
+    </system>
+	<queries>
+		<query>
+			<formula>//  VALIDATION queries</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>strategy Safe= control: A[] not Scheduler_refined.End </formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>strategy OptSafe = minE(fc)[&lt;=200]: &lt;&gt; ShipB_refined.Maneuver_ended under Safe</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>Pr[&lt;=200](&lt;&gt; windy&amp;&amp; ShipB_refined.Change_route_drift) under OptSafe &gt;=  Pr[&lt;=200](&lt;&gt; windy&amp;&amp; ShipB_refined.Changing_Speed) under OptSafe</formula>
+			<comment></comment>
+		</query>
+		<query>
+			<formula>Pr[&lt;=200](&lt;&gt; ShipB_refined.Change_route) under OptSafe &gt;=  Pr[&lt;=200](&lt;&gt; ShipB_refined.Changing_Speed) under OptSafe</formula>
+			<comment></comment>
+		</query>
+	</queries>
+</nta>
